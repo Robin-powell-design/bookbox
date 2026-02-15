@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  INSTRUCTOR
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+}
+
+enum ClassStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+enum PackageType {
+  BUNDLE
+  MONTHLY
+}
+
+enum PaymentType {
+  SINGLE_CLASS
+  PACKAGE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships   Membership[]
+  bookings      Booking[]
+  userPackages  UserPackage[]
+  payments      Payment[]
+  sentMessages  Message[]  @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  instructorTemplates ClassTemplate[] @relation("Instructor")
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  logo            String?
+  primaryColor    String   @default("#0F172A")
+  secondaryColor  String   @default("#334155")
+  accentColor     String   @default("#0369A1")
+  stripeAccountId String?
+  cancellationHours Int    @default(2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships     Membership[]
+  classTemplates  ClassTemplate[]
+  classInstances  ClassInstance[]
+  packages        Package[]
+  payments        Payment[]
+  messages        Message[]
+  categories      Category[]
+}
+
+model Membership {
+  id        String           @id @default(cuid())
+  userId    String
+  orgId     String
+  role      Role             @default(MEMBER)
+  status    MembershipStatus @default(ACTIVE)
+  joinedAt  DateTime         @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String
+  orgId String
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  classTemplates ClassTemplate[]
+
+  @@unique([name, orgId])
+}
+
+model ClassTemplate {
+  id           String  @id @default(cuid())
+  orgId        String
+  name         String
+  description  String?
+  instructorId String
+  dayOfWeek    Int?
+  time         String
+  duration     Int
+  capacity     Int
+  price        Int
+  isRecurring  Boolean       @default(true)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instructor   User           @relation("Instructor", fields: [instructorId], references: [id])
+  instances    ClassInstance[]
+  categories   Category[]
+}
+
+model ClassInstance {
+  id         String      @id @default(cuid())
+  templateId String
+  orgId      String
+  date       DateTime
+  time       String
+  capacity   Int
+  status     ClassStatus @default(SCHEDULED)
+  createdAt  DateTime    @default(now())
+
+  template     ClassTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  classInstanceId String
+  status          BookingStatus @default(CONFIRMED)
+  paymentId       String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classInstance ClassInstance  @relation(fields: [classInstanceId], references: [id], onDelete: Cascade)
+  payment       Payment?      @relation(fields: [paymentId], references: [id])
+
+  @@unique([userId, classInstanceId])
+}
+
+model Package {
+  id          String      @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  price       Int
+  classCount  Int?
+  durationDays Int?
+  type        PackageType
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userPackages UserPackage[]
+}
+
+model UserPackage {
+  id               String   @id @default(cuid())
+  userId           String
+  packageId        String
+  remainingClasses Int?
+  expiresAt        DateTime?
+  purchasedAt      DateTime @default(now())
+  paymentId        String?  @unique
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  orgId           String
+  amount          Int
+  stripePaymentId String?       @unique
+  type            PaymentType
+  status          PaymentStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+  userPackage  UserPackage?
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  orgId      String
+  subject    String
+  body       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User         @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
