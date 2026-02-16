@@ -27,13 +27,24 @@ export default function SignUpPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, orgSlug }),
+        body: JSON.stringify({ name, email, password, orgSlug: orgSlug || undefined }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setError(`Server returned ${res.status} with non-JSON body`);
+        setLoading(false);
+        return;
+      }
 
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Sign up failed");
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : JSON.stringify(data.error || data)
+        );
         setLoading(false);
         return;
       }
@@ -46,13 +57,13 @@ export default function SignUpPage() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError(`Sign-in failed: ${result.error}`);
         setLoading(false);
       } else {
-        router.push("/dashboard");
+        router.push("/setup");
       }
-    } catch {
-      setError("Something went wrong");
+    } catch (err: any) {
+      setError(`Exception: ${err.message || "Unknown error"}`);
       setLoading(false);
     }
   }

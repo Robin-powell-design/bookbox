@@ -6,7 +6,9 @@ import { signUpSchema } from "@/lib/validations";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("Signup request body:", JSON.stringify(body));
     const { name, email, password, orgSlug } = signUpSchema.parse(body);
+    console.log("Validation passed, creating user...");
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -52,11 +54,13 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     if (error.name === "ZodError") {
+      const messages = (error.issues || []).map((i: any) => i.message);
       return NextResponse.json(
-        { error: error.errors },
+        { error: messages.join(", ") || "Validation failed" },
         { status: 400 }
       );
     }
+    console.error("Signup error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
