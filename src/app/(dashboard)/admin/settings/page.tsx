@@ -15,6 +15,7 @@ export default async function SettingsPage() {
       slug: true,
       cancellationHours: true,
       defaultCapacity: true,
+      stripeAccountId: true,
     },
   });
 
