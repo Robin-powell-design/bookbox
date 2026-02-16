@@ -106,6 +106,7 @@ model Organization {
   accentColor     String   @default("#0369A1")
   stripeAccountId String?
   cancellationHours Int    @default(2)
+  defaultCapacity   Int    @default(20)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
